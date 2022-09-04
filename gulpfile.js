@@ -1,216 +1,74 @@
-let project_folder = "dist";
-let source_folder = "#src";
-let fs = require("fs");
+const gulp = require("gulp");
+const concat = require("gulp-concat");
+const autoprefixer = require("gulp-autoprefixer");
+const cleanCSS = require("gulp-clean-css");
+const uglify = require("gulp-uglify");
+const del = require("del");
+const browserSync = require("browser-sync").create();
+const sourcemaps = require("gulp-sourcemaps");
+const sass = require("gulp-sass");
 
-let path = {
-  build: {
-    html: project_folder + "/",
-    css: project_folder + "/css/",
-    js: project_folder + "/js/",
-    img: project_folder + "/img/",
-    fonts: project_folder + "/fonts/",
-  },
-  src: {
-    html: [source_folder + "/*.html", "!" + source_folder + "/_*.html"],
-    css: source_folder + "/scss/style.scss",
-    js: source_folder + "/js/script.js",
-    img: source_folder + "/img/**/*.{jpg, png, svg, gif, ico, webp}",
-    fonts: source_folder + "/fonts/*.ttf",
-  },
-  watch: {
-    html: source_folder + "/**/*.html",
-    css: source_folder + "/scss/**/*.scss",
-    js: source_folder + "/js/**/*.js",
-    img: source_folder + "/img/**/*.{jpg, png, svg, gif, ico, webp}",
-  },
-  clean: "./" + project_folder + "/",
-};
+// //order of css files
+// const cssFiles = ["./src/css/main.css", "./src/css/media.css"];
 
-let { src, dest } = require("gulp");
-let gulp = require("gulp");
-let browsersync = require("browser-sync").create();
-let fileinclude = require("gulp-file-include");
-let del = require("del");
-let scss = require("gulp-sass");
-let autoprefixer = require("gulp-autoprefixer");
-let groupmedia = require("gulp-group-css-media-queries");
-let clean_css = require("gulp-clean-css");
-let rename = require("gulp-rename");
-let uglify = require("gulp-uglify-es").default;
-let imagemin = require("gulp-imagemin");
-let webp = require("gulp-webp");
-let webphtml = require("gulp-webp-html");
-let webpcss = require("gulp-webpcss");
-let svgSprite = require("gulp-svg-sprite");
-let ttf2woff = require("gulp-ttf2woff");
-let ttf2woff2 = require("gulp-ttf2woff2");
-let fonter = require("gulp-fonter");
+//order of scss files
+const cssFiles = ["./src/css/main.scss", "./src/css/media.scss"];
 
-function browserSync() {
-  browsersync.init({
-    server: {
-      baseDir: "./" + project_folder + "/",
-    },
-    port: 3000,
-    notify: false,
-  });
-}
+//order of js files
+const jsFiles = ["./src/js/lib.js", "./src/js/main.js"];
 
-function html() {
-  return src(path.src.html)
-    .pipe(fileinclude())
-    .pipe(webphtml())
-    .pipe(dest(path.build.html))
-    .pipe(browsersync.stream());
-}
-
-function css() {
-  return src(path.src.css)
-    .pipe(
-      scss({
-        outputStyle: "expanded",
-      })
-    )
-    .pipe(groupmedia())
+//task for styles
+function styles() {
+  return gulp
+    .src(cssFiles)
+    .pipe(sourcemaps.init())
+    .pipe(sass())
+    .pipe(concat("style.css"))
     .pipe(
       autoprefixer({
-        overrideBrowserslist: ["last 5 versions"],
-        cascade: true,
+        browserlist: ["2 las versions"],
+        cascade: false,
       })
     )
-    .pipe(webpcss())
-    .pipe(dest(path.build.css))
-    .pipe(clean_css())
     .pipe(
-      rename({
-        extname: ".min.css",
+      cleanCSS({
+        level: 2,
       })
     )
-    .pipe(dest(path.build.css))
-    .pipe(browsersync.stream());
+    .pipe(sourcemaps.write("./"))
+    .pipe(gulp.dest("./build/css"))
+    .pipe(browserSync.stream());
 }
 
-function js() {
-  return src(path.src.js)
-    .pipe(fileinclude())
-    .pipe(dest(path.build.js))
+//task for js files
+function scripts() {
+  return gulp
+    .src(jsFiles)
+    .pipe(concat("script.js"))
     .pipe(uglify())
-    .pipe(
-      rename({
-        extname: ".min.js",
-      })
-    )
-    .pipe(dest(path.build.js))
-    .pipe(browsersync.stream());
-}
-
-function images() {
-  return src(path.src.img)
-    .pipe(
-      webp({
-        quality: 70,
-      })
-    )
-    .pipe(dest(path.build.img))
-    .pipe(src(path.src.img))
-    .pipe(
-      imagemin({
-        progressive: true,
-        svgoPlugins: [{ removeViewBox: false }],
-        interlaced: true,
-        optimizationLevel: 3, //0 to 7
-      })
-    )
-    .pipe(dest(path.build.img))
-    .pipe(browsersync.stream());
-}
-
-function fonts() {
-  src(path.src.fonts).pipe(ttf2woff()).pipe(dest(path.build.fonts));
-  return src(path.src.fonts).pipe(ttf2woff2()).pipe(dest(path.build.fonts));
-}
-
-gulp.task("otf2ttf", function () {
-  return gulp
-    .src([source_folder + "/fonts/*.otf"])
-    .pipe(
-      fonter({
-        formats: ["ttf"],
-      })
-    )
-    .pipe(dest(source_folder + "/fonts/"));
-});
-
-gulp.task("svgSprite", function () {
-  return gulp
-    .src([source_folder + "/iconsprite/*.svg"])
-    .pipe(
-      svgSprite({
-        mode: {
-          stack: {
-            sprite: "../icon/icons.svg",
-            example: true,
-          },
-        },
-      })
-    )
-    .pipe(dest(path.build.img));
-});
-
-function fontsStyle() {
-  let file_content = fs.readFileSync(source_folder + "/scss/fonts.scss");
-  if (file_content == "") {
-    fs.writeFile(source_folder + "/scss/fonts.scss", "", cb);
-    return fs.readdir(path.build.fonts, function (err, items) {
-      if (items) {
-        let c_fontname;
-        for (var i = 0; i < items.length; i++) {
-          let fontname = items[i].split(".");
-          fontname = fontname[0];
-          if (c_fontname != fontname) {
-            fs.appendFile(
-              source_folder + "/scss/fonts.scss",
-              '@include font("' +
-                fontname +
-                '", "' +
-                fontname +
-                '", "400", "normal");\r\n',
-              cb
-            );
-          }
-          c_fontname = fontname;
-        }
-      }
-    });
-  }
-}
-
-// function cb() {}
-
-function watchFiles() {
-  gulp.watch([path.watch.html], html);
-  gulp.watch([path.watch.css], css);
-  gulp.watch([path.watch.js], js);
-  gulp.watch([path.watch.img], images);
+    .pipe(gulp.dest("./build/js"))
+    .pipe(browserSync.stream());
 }
 
 function clean() {
-  return del(path.clean);
+  return del(["build/*"]);
 }
 
-let build = gulp.series(
-  clean,
-  gulp.parallel(js, css, html, images, fonts),
-  fontsStyle
-);
-let watch = gulp.parallel(build, watchFiles, browserSync);
+function watch() {
+  browserSync.init({
+    server: {
+      baseDir: "./",
+    },
+  });
+  // gulp.watch("./src/css/**/*.css", styles);
+  gulp.watch("./src/css/**/*.scss", styles);
+  gulp.watch("./src/js/**/*.js", scripts);
+  gulp.watch("./*.html").on("change", browserSync.reload);
+}
 
-exports.fontsStyle = fontsStyle;
-exports.fonts = fonts;
-exports.images = images;
-exports.js = js;
-exports.css = css;
-exports.html = html;
-exports.build = build;
-exports.watch = watch;
-exports.default = watch;
+gulp.task("styles", styles);
+gulp.task("scripts", scripts);
+gulp.task("del", clean);
+gulp.task("watch", watch);
+gulp.task("build", gulp.series(clean, gulp.parallel(styles, scripts)));
+gulp.task("dev", gulp.series("build", "watch"));
